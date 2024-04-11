@@ -87,8 +87,8 @@ class MailerApi extends NgBackendCall {
   override def visibility: NgPluginVisibility = NgPluginVisibility.NgUserLand
   override def multiInstance: Boolean = true
   override def core: Boolean = true
-  override def name: String = "Mailing API"
-  override def description: Option[String] = "This plugin provide and endpoint to send email using SMTP".some
+  override def name: String = "Mailer API"
+  override def description: Option[String] = "This plugin provide an endpoint to send email using SMTP".some
   override def defaultConfigObject: Option[NgPluginConfig] = Some(MailerApiConfiguration.default)
   override def useDelegates: Boolean = false
   override def noJsForm: Boolean = true
@@ -97,6 +97,11 @@ class MailerApi extends NgBackendCall {
 
   private val sendingEc = ExecutionContext.fromExecutorService(Executors.newFixedThreadPool(Runtime.getRuntime.availableProcessors() + 1))
   private val queueRef = new AtomicReference[SourceQueueWithComplete[Mail]]()
+
+  override def start(env: Env): Future[Unit] = {
+    env.logger.info("[Cloud APIM] the 'Mailer API' plugin is available !")
+    ().vfuture
+  }
 
   private def getQueueRef()(implicit env: Env): SourceQueueWithComplete[Mail] = queueRef.synchronized {
     if (queueRef.get() == null) {
