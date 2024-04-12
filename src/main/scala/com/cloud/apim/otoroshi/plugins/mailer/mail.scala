@@ -123,14 +123,14 @@ case class Mail(
   )
 }
 
-class MailerApi extends NgBackendCall {
+class MailerEndpoint extends NgBackendCall {
 
   override def steps: Seq[NgStep] = Seq(NgStep.CallBackend)
   override def categories: Seq[NgPluginCategory] = Seq(NgPluginCategory.Custom("Mailing"), NgPluginCategory.Custom("Cloud APIM"))
   override def visibility: NgPluginVisibility = NgPluginVisibility.NgUserLand
   override def multiInstance: Boolean = true
   override def core: Boolean = true
-  override def name: String = "Mailer API"
+  override def name: String = "Mailer endpoint"
   override def description: Option[String] = "This plugin provide an endpoint to send email using SMTP".some
   override def defaultConfigObject: Option[NgPluginConfig] = Some(MailerApiConfiguration.default)
   override def useDelegates: Boolean = false
@@ -142,7 +142,7 @@ class MailerApi extends NgBackendCall {
   private val queueRef = new AtomicReference[SourceQueueWithComplete[Mail]]()
 
   override def start(env: Env): Future[Unit] = {
-    env.logger.info("[Cloud APIM] the 'Mailer API' plugin is available !")
+    env.logger.info("[Cloud APIM] the 'Mailer endpoint' plugin is available !")
     ().vfuture
   }
 
@@ -178,7 +178,7 @@ class MailerApi extends NgBackendCall {
     } else {
       val messageBodyPart = new MimeBodyPart()
       messageBodyPart.setContent(mail.content.utf8String, mail.mimetype)
-      val attachements = mail.attachments.map { att =>
+      val attachments = mail.attachments.map { att =>
         val attachmentPart = new MimeBodyPart()
         attachmentPart.setFileName(att.name)
         if (att.disposition == "inline") {
@@ -190,7 +190,7 @@ class MailerApi extends NgBackendCall {
       }
       val multipart = new MimeMultipart("related")
       multipart.addBodyPart(messageBodyPart)
-      attachements.foreach(att => multipart.addBodyPart(att))
+      attachments.foreach(att => multipart.addBodyPart(att))
       msg.setContent(multipart)
     }
     val addresses = mail.to ++ mail.cc ++ mail.bcc
@@ -235,7 +235,7 @@ class MailerApi extends NgBackendCall {
       content = value.select("body").asOpt[String].orElse(value.select("html").asOpt[String]).orElse(value.select("text").asOpt[String]).getOrElse("").byteString,
       config = config,
       tryCount = 0,
-      attachments = value.select("attachements").asOpt[Seq[JsObject]] match {
+      attachments = value.select("attachments").asOpt[Seq[JsObject]] match {
         case None => Seq.empty
         case Some(seq) => seq.map(obj => MailAttachment(
           obj.select("name").asString,
@@ -245,10 +245,10 @@ class MailerApi extends NgBackendCall {
         ))
       }
     )).flatMap {
-      case QueueOfferResult.QueueClosed => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.Ok(Json.obj("enqueue" -> false, "error" -> "queue already closed"))), None).rightf
-      case QueueOfferResult.Dropped => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.Ok(Json.obj("enqueue" -> false, "error" -> "email dropped"))), None).rightf
-      case QueueOfferResult.Failure(e) => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.Ok(Json.obj("enqueue" -> false, "error" -> e.getMessage))), None).rightf
-      case QueueOfferResult.Enqueued => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.Ok(Json.obj("enqueue" -> true))), None).rightf
+      case QueueOfferResult.QueueClosed => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.InternalServerError(Json.obj("queued" -> false, "error" -> "queue already closed"))), None).rightf
+      case QueueOfferResult.Dropped => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.InternalServerError(Json.obj("queued" -> false, "error" -> "email dropped"))), None).rightf
+      case QueueOfferResult.Failure(e) => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.InternalServerError(Json.obj("queued" -> false, "error" -> e.getMessage))), None).rightf
+      case QueueOfferResult.Enqueued => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.Ok(Json.obj("queued" -> true))), None).rightf
     }.recover {
       case t => BackendCallResponse(NgPluginHttpResponse.fromResult(Results.Ok(Json.obj("enqueue" -> false, "error" -> t.getMessage))), None).right
     }
