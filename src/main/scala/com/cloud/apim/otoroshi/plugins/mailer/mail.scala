@@ -130,7 +130,7 @@ class MailerEndpoint extends NgBackendCall {
   override def visibility: NgPluginVisibility = NgPluginVisibility.NgUserLand
   override def multiInstance: Boolean = true
   override def core: Boolean = true
-  override def name: String = "Mailer endpoint"
+  override def name: String = "Cloud APIM - Mailer endpoint"
   override def description: Option[String] = "This plugin provide an endpoint to send email using SMTP".some
   override def defaultConfigObject: Option[NgPluginConfig] = Some(MailerApiConfiguration.default)
   override def useDelegates: Boolean = false
