@@ -15,7 +15,7 @@ lazy val root = (project in file("."))
     assembly / test  := {},
     assembly / assemblyJarName := "otoroshi-plugin-mailer-assembly_2.12-dev.jar",
     libraryDependencies ++= Seq(
-      "fr.maif" %% "otoroshi" % "16.18.0" % "provided",
+      "fr.maif" %% "otoroshi" % "17.0.0" % "provided",
       "javax.mail"   % "javax.mail-api" % "1.6.2",
       "com.sun.mail" % "javax.mail"     % "1.6.2",
       munit % Test
