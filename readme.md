@@ -1,6 +1,6 @@
 # Cloud APIM mailer otoroshi plugin
 
-this plugin allow you to expose your SMTP server through a REST API to send emails
+An [Otoroshi](https://github.com/MAIF/otoroshi) plugin to expose your SMTP server through a REST API to send emails
 
 ## Create a route to send emails
 
