@@ -1,9 +1,8 @@
 package otoroshi_plugins.com.cloud.apim.otoroshi.plugins.mailer
 
-import akka.stream.scaladsl.{Keep, Sink, Source, SourceQueueWithComplete}
-import akka.stream.{Materializer, OverflowStrategy, QueueOfferResult}
-import akka.util.ByteString
-import com.google.common.base.Charsets
+import org.apache.pekko.stream.scaladsl.{Keep, Sink, Source, SourceQueueWithComplete}
+import org.apache.pekko.stream.{Materializer, OverflowStrategy, QueueOfferResult}
+import org.apache.pekko.util.ByteString
 import com.sun.mail.smtp.SMTPTransport
 import org.joda.time.DateTime
 import otoroshi.env.Env
@@ -146,18 +145,18 @@ class MailerEndpoint extends NgBackendCall {
     ().vfuture
   }
 
-  private def getQueueRef()(implicit env: Env): SourceQueueWithComplete[Mail] = queueRef.synchronized {
+  private def getQueueRef()(using env: Env): SourceQueueWithComplete[Mail] = queueRef.synchronized {
     if (queueRef.get() == null) {
       val stream = Source.queue[Mail](128, OverflowStrategy.dropTail).mapAsync(Runtime.getRuntime.availableProcessors() + 1) { mail =>
-        doSendEmail(mail)(env)
+        doSendEmail(mail)(using env)
       }
-      val (queue, done) = stream.toMat(Sink.ignore)(Keep.both).run()(env.analyticsMaterializer)
+      val (queue, done) = stream.toMat(Sink.ignore)(Keep.both).run()(using env.analyticsMaterializer)
       queueRef.set(queue)
     }
     queueRef.get()
   }
 
-  private def doSendEmail(mail: Mail)(implicit env: Env): Future[Either[Throwable, Unit]] = {
+  private def doSendEmail(mail: Mail)(using env: Env): Future[Either[Throwable, Unit]] = {
     val config = mail.config
     val props    = new Properties()
     val protocol = if (config.smtps) "smtps" else "smtp"
@@ -211,15 +210,15 @@ class MailerEndpoint extends NgBackendCall {
         }
         t
       }
-      .right.map { r =>
+      .map { r =>
         env.logger.info(s"email sent to ${addresses.mkString(", ")}")
         EmailSendingSuccess(UUID.randomUUID().toString, mail).toAnalytics()
         r
       }
-    }(sendingEc)
+    }(using sendingEc)
   }
 
-  private def doQueueEmail(ctx: NgbBackendCallContext, value: JsValue, config: MailerApiConfiguration)(implicit env: Env, ec: ExecutionContext, mat: Materializer): Future[Either[NgProxyEngineError, BackendCallResponse]] = {
+  private def doQueueEmail(ctx: NgbBackendCallContext, value: JsValue, config: MailerApiConfiguration)(using env: Env, ec: ExecutionContext, mat: Materializer): Future[Either[NgProxyEngineError, BackendCallResponse]] = {
     getQueueRef().offer(Mail(
       subject = value.select("subject").asOpt[String].getOrElse("Subject"),
       from = value.select("from").asString,
@@ -254,7 +253,7 @@ class MailerEndpoint extends NgBackendCall {
     }
   }
 
-  override def callBackend(ctx: NgbBackendCallContext, delegates: () => Future[Either[NgProxyEngineError, BackendCallResponse]])(implicit env: Env, ec: ExecutionContext, mat: Materializer): Future[Either[NgProxyEngineError, BackendCallResponse]] = {
+  override def callBackend(ctx: NgbBackendCallContext, delegates: () => Future[Either[NgProxyEngineError, BackendCallResponse]])(using env: Env, ec: ExecutionContext, mat: Materializer): Future[Either[NgProxyEngineError, BackendCallResponse]] = {
     val config = ctx.cachedConfig(internalName)(MailerApiConfiguration.format).getOrElse(MailerApiConfiguration.default)
     if (ctx.request.method == "POST" && ctx.request.hasBody && ctx.request.contentType.contains("application/json")) {
       ctx.request.body.runFold(ByteString.empty)(_ ++ _).flatMap { bodyRaw =>
@@ -278,7 +277,7 @@ case class EmailSendingError(
   override def fromOrigin: Option[String]    = None
   override def fromUserAgent: Option[String] = None
 
-  override def toJson(implicit _env: Env): JsValue =
+  override def toJson(using _env: Env): JsValue =
     Json.obj(
       "@id"           -> `@id`,
       "@timestamp"    -> play.api.libs.json.JodaWrites.JodaDateTimeNumberWrites.writes(`@timestamp`),
@@ -305,7 +304,7 @@ case class EmailSendingSuccess(
   override def fromOrigin: Option[String]    = None
   override def fromUserAgent: Option[String] = None
 
-  override def toJson(implicit _env: Env): JsValue =
+  override def toJson(using _env: Env): JsValue =
     Json.obj(
       "@id"           -> `@id`,
       "@timestamp"    -> play.api.libs.json.JodaWrites.JodaDateTimeNumberWrites.writes(`@timestamp`),
