@@ -7,7 +7,6 @@ import com.sun.mail.smtp.SMTPTransport
 import org.joda.time.DateTime
 import otoroshi.env.Env
 import otoroshi.events.AlertEvent
-import otoroshi.models.ApiKey
 import otoroshi.next.plugins.api._
 import otoroshi.next.proxy.NgProxyEngineError
 import otoroshi.utils.syntax.implicits._
@@ -39,7 +38,7 @@ case class MailerApiConfiguration(
 
 object MailerApiConfiguration {
   val default = MailerApiConfiguration("")
-  val format = new Format[MailerApiConfiguration] {
+  given format: Format[MailerApiConfiguration] = new Format[MailerApiConfiguration] {
     override def writes(o: MailerApiConfiguration): JsValue = Json.obj(
       "host" -> o.host,
       "port" -> o.port,
@@ -150,7 +149,7 @@ class MailerEndpoint extends NgBackendCall {
       val stream = Source.queue[Mail](128, OverflowStrategy.dropTail).mapAsync(Runtime.getRuntime.availableProcessors() + 1) { mail =>
         doSendEmail(mail)(using env)
       }
-      val (queue, done) = stream.toMat(Sink.ignore)(Keep.both).run()(using env.analyticsMaterializer)
+      val queue = stream.toMat(Sink.ignore)(Keep.left).run()(using env.analyticsMaterializer)
       queueRef.set(queue)
     }
     queueRef.get()
@@ -161,7 +160,7 @@ class MailerEndpoint extends NgBackendCall {
     val props    = new Properties()
     val protocol = if (config.smtps) "smtps" else "smtp"
     props.put(s"mail.${protocol}.host", config.host)
-    config.port.map(port => props.put(s"mail.${protocol}.port", port))
+    config.port.foreach(port => props.put(s"mail.${protocol}.port", port))
     props.put(s"mail.${protocol}.starttls.enable", config.starttlsEnabled)
     props.put(s"mail.${protocol}.auth", config.auth)
 
@@ -218,7 +217,7 @@ class MailerEndpoint extends NgBackendCall {
     }(using sendingEc)
   }
 
-  private def doQueueEmail(ctx: NgbBackendCallContext, value: JsValue, config: MailerApiConfiguration)(using env: Env, ec: ExecutionContext, mat: Materializer): Future[Either[NgProxyEngineError, BackendCallResponse]] = {
+  private def doQueueEmail(value: JsValue, config: MailerApiConfiguration)(using env: Env, ec: ExecutionContext): Future[Either[NgProxyEngineError, BackendCallResponse]] = {
     getQueueRef().offer(Mail(
       subject = value.select("subject").asOpt[String].getOrElse("Subject"),
       from = value.select("from").asString,
@@ -257,7 +256,7 @@ class MailerEndpoint extends NgBackendCall {
     val config = ctx.cachedConfig(internalName)(MailerApiConfiguration.format).getOrElse(MailerApiConfiguration.default)
     if (ctx.request.method == "POST" && ctx.request.hasBody && ctx.request.contentType.contains("application/json")) {
       ctx.request.body.runFold(ByteString.empty)(_ ++ _).flatMap { bodyRaw =>
-        doQueueEmail(ctx, Json.parse(bodyRaw.utf8String), config)
+        doQueueEmail(Json.parse(bodyRaw.utf8String), config)
       }
     } else {
       BackendCallResponse(NgPluginHttpResponse.fromResult(Results.NotFound(Json.obj("error" -> "not found"))), None).rightf
