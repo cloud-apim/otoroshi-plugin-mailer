@@ -24,7 +24,7 @@ lazy val root = (project in file("."))
     // second copy of the whole stdlib in the plugin jar
     assembly / assemblyPackageScala / assembleArtifact := false,
     libraryDependencies ++= Seq(
-      "fr.maif" %% "otoroshi" % "18.0.0-rc3" % "provided",
+      "fr.maif" %% "otoroshi" % "18.0.0" % "provided",
       "javax.mail"   % "javax.mail-api" % "1.6.2",
       "com.sun.mail" % "javax.mail"     % "1.6.2",
       munit % Test
